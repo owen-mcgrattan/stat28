@@ -1,0 +1,241 @@
+---
+title: "Project 3"
+author: "Owen McGrattan"
+date: "5/1/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1
+
+Read the train data into R
+```{r}
+library(readr)
+train <- read_csv("~/stat28/projects/data/train_titanic.csv")
+```
+
+Question 2 
+
+```{r}
+summary(train)
+```
+
+```{r}
+pairs(train[,-c(9,4,5,11,12)])
+```
+It's a little difficult to pull anything from this pairs plot but the differences between the male and female groups should be analyzed as well as the differences in whether or not the cost of the ticket had anything to do with survival as well.
+```{r}
+par(mfrow=c(2,2))
+hist(train$Fare,xlab="Fare",main="Fares",breaks=25)
+hist(train$Pclass,xlab="Pclass",main="Pclass")
+hist(train$Parch,xlab="Parch",main="Parch")
+hist(train$SibSp,xlab="SibSp",main="SibSp")
+```
+Based on the histograms of the explanatory variables, there appears to be skewness for Fares, Pclass, Parch, and SibSp. We should consider taking 
+
+```{r}
+males<-train[train$Sex=="male",]
+hist(males$Survived,main="No. of males survived",xlab="1=Survived,0=died")
+females<-train[train$Sex=="female",]
+hist(females$Survived,main="No. of females survived",xlab="1=Survive, 0=Not survive")
+
+```
+
+The people on the Titanic very much tried to save the women as evidenced by the few number of men who survived and the large number of women who survived.
+
+```{r}
+survived<-train[train$Survived=="1",]
+hist(survived$Fare,breaks=50,xlab="Fare",main="")
+not_survived<-train[train$Survived=="0",]
+hist(not_survived$Fare,breaks=50,xlab="Fare",main="")
+median(survived$Fare)
+median(not_survived$Fare)
+```
+
+Looking at the distributions of both the fares for those who survived versus those who didn't shows that those who survived generally paid higher fares with the median fare ticket of the surviving group coming in at 26 with the median fare ticket of the non survivors at 10.5.
+
+Question 3
+
+```{r}
+#Fit a logistic regression equation
+fitted<-glm(Survived~as.factor(Pclass)+as.factor(Sex)+Age+SibSp+Parch+Fare+as.factor(Embarked)+as.factor(Embarked):as.factor(Pclass)+Age:as.factor(Pclass)+as.factor(Sex):as.factor(Pclass)+as.factor(Pclass):Fare+Age:Fare+Parch:SibSp+as.factor(Pclass):SibSp+as.factor(Pclass):Parch+Age:as.factor(Embarked),family = "binomial",data=na.omit(train[,-11]))
+summary(fitted)
+```
+```{r}
+#Variable selection for fitted
+step(fitted,direction="both")
+
+```
+
+```{r}
+fitted<-glm(formula = Survived ~ as.factor(Pclass) + as.factor(Sex) + 
+    Age + SibSp + Parch + Fare + as.factor(Pclass):as.factor(Sex) + 
+    Age:Fare + as.factor(Pclass):Parch, family = "binomial", 
+    data = na.omit(train[, -11]))
+```
+
+Obtain a suitable threshold by minimizing misclassification error
+
+
+```{r}
+conf <- matrix(0, nrow = 21, ncol = 5) 
+colnames(conf) <- c("thr", "a", "b", "c", "d") 
+conf[, 1] <- seq(0, 1, by = 0.05)
+omitted<-na.omit(train[,-11])
+y <- omitted$Survived
+yhat <- fitted$fitted.values
+for (i in 1:21) {
+    a <- sum((!y) & (yhat <= conf[i, 1]))
+    b <- sum((!y) & (yhat > conf[i, 1]))
+    c <- sum((y) & (yhat <= conf[i, 1]))
+    d <- sum((y) & (yhat > conf[i, 1]))
+    conf[i, 2:5] <- c(a, b, c, d)
+}
+conf
+```
+```{r}
+conf[,"b"]+conf[,"c"]
+```
+
+
+
+```{r}
+plot(conf[, 1], conf[, 3] + conf[, 4], xlab = "threshold",
+    ylab = "b+c")
+```
+
+Based on the plot above and looking at the b+c values, the optimal threshold is at 0.5 where the b+c is lowest.
+
+
+Predictions
+
+
+```{r}
+#Read in test data
+test = read_csv("~/stat28/projects/data/test_titanic.csv")
+test<-test[,-11]
+#Fill in missing Age and Fare values using Amelia
+library(Amelia)
+test$Sex<-as.factor(test$Sex)
+a.out<- amelia(test[,-c(3,8,10)],ts="PassengerId",noms = c("Sex"))
+test$Age<-a.out$imputations[[1]]$Age
+test$Fare<-a.out$imputations[[1]]$Fare
+
+pred.val = predict(fitted, test)
+pred = as.numeric(pred.val > 0.50)
+preds<-data.frame("PassengerId"=test$PassengerId,
+                  "Survived"=pred)
+pred.file = cbind(test$PassengerId, pred) 
+colnames(pred.file) = c("PassengerId", "Survived")
+write.csv(preds, "Predictions.csv",row.names = F)
+```
+Kaggle Score=0.7512
+
+The Kaggle score is computed by dividing the number of correct predictions by the total number of predictions.
+
+Question 4
+
+Fit a classification tree
+
+```{r}
+library(rpart)
+tr<-rpart(Survived ~ as.factor(Pclass) + as.factor(Sex) + 
+    Age + SibSp + Parch + Fare,method="class" ,
+    data = na.omit(train[, -11]))
+plot(tr)
+text(tr,cex=0.5)
+```
+```{r}
+#Pick the proper cp for tr
+printcp(tr)
+```
+
+
+```{r}
+c<-0.010417
+tr<-rpart(Survived ~ as.factor(Pclass) + as.factor(Sex) + 
+    Age + SibSp + Parch + Fare,method="class",cp=c,
+    data = na.omit(train[, -11]))
+plot(tr)
+text(tr,cex=0.5)
+```
+
+Predict the values for the test set
+
+```{r}
+y.tr = predict(tr, train)[, 2] 
+confusion <- function(y, yhat, thres) {
+n <- length(thres)
+conf <- matrix(0, length(thres), ncol = 4) 
+colnames(conf) <- c("a", "b", "c", "d") 
+for (i in 1:n) {
+        a <- sum((!y) & (yhat <= thres[i]))
+        b <- sum((!y) & (yhat > thres[i]))
+        c <- sum((y) & (yhat <= thres[i]))
+        d <- sum((y) & (yhat > thres[i]))
+        conf[i, ] <- c(a, b, c, d)
+
+}
+return(conf) }
+v = seq(0.05, 0.95, by = 0.05)
+y = as.numeric(train$Survived == 1)
+tree.conf = confusion(y, y.tr, v)
+plot(v, tree.conf[, 2] + tree.conf[, 3], xlab = "threshold",
+    ylab = "b+c", type = "l")
+```
+Based on the table of thresholds, the threshold with the lowest b+c value is 0.2
+
+```{r}
+#Get predicted values using threshold 
+pred.val = predict(tr, test)
+pred = as.numeric(pred.val > 0.2)
+
+#Create data frame and write csv
+preds<-data.frame("PassengerId"=test$PassengerId,
+                  "Survived"=pred)
+#Weird error where rows repeat themselves, eliminate duplicates
+preds<-preds[419:836,]
+write.csv(preds,"Classification.csv",row.names = F)
+
+
+```
+Kaggle score: 0.76555
+
+
+
+Question 5:
+
+Random Forests
+
+Create a random forest
+```{r}
+library(randomForest)
+train$Pclass<-as.factor(train$Pclass)
+train$Sex<-as.factor(train$Sex)
+#Create a random forest
+ft<-randomForest(as.factor(Survived) ~ Pclass + Sex + 
+    Age + SibSp + Parch + Fare + Pclass:Sex + 
+    Age:Fare + Pclass:Parch,importance=TRUE, 
+    data = na.omit(train[, -11]))
+
+```
+
+
+```{r}
+#Create a dataframe of predictions
+test$Pclass<-as.factor(test$Pclass)
+test$Sex<-as.factor(test$Sex)
+res<-predict(ft,test)
+results<-data.frame("PassengerId"=test$PassengerId,
+                    "Survived"=res)
+write.csv(results,"Results.csv",row.names=F)
+
+```
+
+Kaggle Score: 0.75598
+
+
+My Kaggle scores were not horrible, but certainly nowhere near the top of the leaderboard.  In the future I would look to improve my predictions for the missing Age values to improve my final predictions. I would also try different methods of variable selection to see if I could find a model better than the one I chose.

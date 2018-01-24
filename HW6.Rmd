@@ -1,0 +1,350 @@
+---
+title: "HW6"
+author: "STAT 28"
+output:
+  pdf_document
+header-includes:
+- \usepackage{framed}
+- \usepackage{xcolor}
+- \let\oldquote=\quote
+- \let\endoldquote=\endquote
+- \colorlet{shadecolor}{orange!15}
+- \renewenvironment{quote}{\begin{shaded*}\begin{oldquote}}{\end{oldquote}\end{shaded*}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+```
+
+### Question 1 
+
+a (2 points) I have a dataset containing average hourly earnings in dollars (wage) and years of education (educ) for 526 individuals. I fit a simple linear regression equation with wage as response and educ as the explanatory variable. This gave me the following equation: 
+
+wage = -0.90485 + 0.54136 * (educ). 
+
+Which among the following is the correct interpretation for this equation? Give reasons for your answer. 
+ 
+  (i) For every additional four years of education, the average hourly wage increases by 4*0.54 = 2.16 dollars. 
+  
+  (ii) For every additional year of education, the average hourly wage increases by 54%. 
+  
+  (iii) For every 1% increase in the number of years of education, the average hourly wage increases by 0.54%.
+  
+> My answer: The correct interpretation for the equation is I. III is an interpretation that would apply if the equaiton was log(wage)=(some intercept) + (some constant)log(educ).  II is incorrect because the .54 yearly increase is not in the percent of the total wage but in actual dollars itself.
+
+b (2 points) For the same dataset as in the previous part, I fit a simple linear regression equation with log(wage) as response and educ as the explanatory variable. This gave me the following equation: 
+
+log(wage) = 0.583773 + 0.082744 * (educ). 
+
+Which among the following is the correct interpretation for this equation? Give reasons for your answer. 
+
+  (i)  For every additional year of education, the average hourly wage increases by 0.0827 dollars. 
+  
+  (ii) For every additional year of education, the average hourly wage increases by 8.27 percent. 
+  
+  (iii) For every additional year of education, the average hourly wage increases by 0.0827 percent. 
+  
+> My answer: III is the correct interpretation.  I is incorrect since the response variable is no longer wage but log(wage) so the straight-forward dollar increase is not correct, and II is incorrect because the educ constant is already a representation of the percent of change in hourly wage.
+
+c (2 points) I have a dataset on the salaries of the CEOs of 209 firms (variable name is salary) along with the sales of the firm (variable is sales). The dataset is from the year 1990. Salary is in thousands of dollars and Sales is in millions of dollars. I fit a simple linear regression with log(salary) as the response variable and log(sales) as the explanatory variable and this gave me the equation:
+
+log(salary) = 4.822 + 0.25667 * log(sales). 
+
+Which among the following is the correct interpretation for this equation? Give reasons for your answer. 
+
+   (i)  For a 1 percent increase in sales, the CEO salary increases by 0.257 percent on average. 
+   
+   (ii) For a 1 million dollar increase in firm sales, the CEO salary increases by 25.667 thousand dollars on average. 
+   
+   (iii) For a 1 million dollar increase in firm sales, the CEO salary increases by 2.57 percent. 
+   
+> My answer: The correct interpretation is I since both the response and explanatory variables are log(variable) so the percent change in the explanatory variable leads to a percent change in the response variable.
+
+
+### Question 2 
+
+The USPopFull.R dataset contains the population of the United States for every ten years starting from 1790 to 2010. The first two variables are year and population respectively. The third variable gives the percent change in population and you can ignore this for the purpose of this question. 
+
+a (2 points) Is it reasonable to fit a linear regression equation with population as the response variable and year as the explanatory variable? Why or why not? 
+
+> My answer:  No, while the population does grow over time it isn't explained because of time.  It is misleading to think that the population just grows over time and other variables should be included to fit a proper regression equation.
+
+b (2 points) Fit a linear regression equation with population as the response variable and year as the explanatory variable. Report the fitted regression equation and interpret it. 
+
+```{r}
+uspopfull <- read.table("USpopFull.R", header = TRUE)    # read data using function read.table
+uspopfull$Population <- as.numeric(gsub(",", "", uspopfull$Population) )    # remove the comma in `Population` and convert it to numeric
+uspopfull$Percent <- as.numeric(gsub("%", "", uspopfull$Percent))    # remove the percentage sign in `Percent` and convert it to numeric
+pop.fit<-lm(Population~Year,data=uspopfull)
+summary(pop.fit)
+```
+
+> My answer: population=-2.481e+09+1.361e+06(year)
+For each additional year, the population increases by 1,361,000.
+
+c (2 points) Plot the residuals from the regression in the previous part against the explanatory variable year. What does this plot reveal? 
+
+
+```{r}
+plot(uspopfull$Year,pop.fit$residuals,ylab="Residuals",xlab="Year")
+```
+
+
+> My answer:  There is a non-random shape to the residual plot which suggests that this linear model is not an appropriate fit.
+
+d (2 points) Create an additional explanatory year2 which is the square of the year variable. Now fit a multiple regression equation with population as the response and year and year2 as the explanatory variables. Interpret this regression equation. 
+
+```{r}
+uspopfull$year2<-uspopfull$Year^2
+pop.fit2<-lm(Population~Year+year2,data=uspopfull)
+summary(pop.fit2)
+```
+
+
+> My answer:  population=2.198e+10-2.442e+07(year)+6.784e+03(year2)
+ The population goes up 21,955,586,784 for each unit change in year and year2.
+
+
+e (2 points) Test the hypothesis that the unknown regression coefficient corresponding to the year2 variable is zero. Report the p-value for this test and what is the conclusion of this test? 
+
+```{r}
+anova(pop.fit,pop.fit2)
+```
+
+
+> My answer: P-value 2.2e-16.  Given the the p-value<0.05, we would reject the null hypothesis that the regression coefficient corresponding to year2 is 0. year2 is significant for the accuracy of our model.
+
+f (2 points) Using the regression equation in part d, predict the population of the United States for the year 2020. Also provide an uncertainty interval for your prediction. 
+
+```{r}
+future<-data.frame(Year=2020,year2=2020^2)
+predict(pop.fit2,future,interval="confidence")
+```
+
+
+> My answer:  Predicted=335,057,306 Lower=330,737,053 Upper=339,377,558
+
+
+### Question 3
+
+a (6 points) In the bodyfat dataset that we used in class, I fit a regression equation with BODYFAT as the response variable and AGE, WEIGHT, HEIGHT, CHEST, ABDOMEN, HIP and THIGH. This gave me the following output: 
+
+```
+Call:
+lm(formula = BODYFAT ~ AGE + WEIGHT + HEIGHT + CHEST + ABDOMEN + 
+    HIP + THIGH, data = body)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-11.0729  -3.2387  -0.0782   3.0623  10.3611 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -3.748e+01  1.449e+01  -2.585  0.01031 *  
+AGE          1.202e-02  2.934e-02   0.410  0.68246    
+WEIGHT      -1.392e-01  4.509e-02  -3.087  0.00225 ** 
+HEIGHT      -1.028e-01  9.787e-02  -1.051  0.29438    
+CHEST       -8.312e-04  9.989e-02  -0.008  0.99337    
+ABDOMEN      9.685e-01  8.531e-02  11.352  < 2e-16 ***
+HIP         -1.834e-01  1.448e-01  -1.267  0.20648    
+THIGH        2.857e-01  1.362e-01   2.098  0.03693 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 4.438 on 244 degrees of freedom
+Multiple R-squared:  0.7266 
+F-statistic: 90 on 7 and 244 DF,  p-value: < 2.2e-16
+```
+The output above has six missing values which are indicated by XXXXX. 
+Without using R and using only the available information in the above summary, fill in the missing values giving proper reasons. 
+
+> My answer: The F-statistic is large given the incredibly low p-value and the 7 df is given by the number of variables in the regression equation.
+
+b (4 points) Now for the same dataset, I fit a smaller regression equation with BODYFAT as the response and only AGE, WEIGHT, HEIGHT and ABDOMEN as the explanatory variables. This gave me the following output: 
+
+```Call:
+lm(formula = BODYFAT ~ AGE + WEIGHT + HEIGHT + ABDOMEN, data = body)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-12.3922  -3.1690  -0.0351   3.0972  10.1431 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -36.704879   7.063227  -5.197 4.25e-07 ***
+AGE          -0.005932   0.026281  -0.226    0.822    
+WEIGHT       -0.133543   0.027041  -4.938 1.45e-06 ***
+HEIGHT       -0.125797   0.089319  -1.408    0.160    
+ABDOMEN       0.959857   0.072628  13.216  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 4.455 on 247 degrees of freedom
+Multiple R-squared: 0.7210
+F-statistic: 159.7 on 4 and 247 DF,  p-value: < 2.2e-16
+```
+Without using R and using the information in the above two regression summaries, fill in the four missing values in the above output giving appropriate reasons. 
+
+> My answer:  The two df are given by the number of explanatory variables and using the df from the previous regressions equation to determine that n=252
+The Multiple R-squared is calculated by using the residual standard error and df to find the RSS and calculating the RSS for the previous equation to extract the TSS since it shouldn't change in this submodel.
+
+c (8 points) Let the regression equation in the first part above be denoted by M and the equation in the second part above be denoted by m. The anova(m, M) function in R gave me the following ouput: 
+
+```
+Analysis of Variance Table
+
+Model 1: BODYFAT ~ AGE + WEIGHT + HEIGHT + ABDOMEN
+Model 2: BODYFAT ~ AGE + WEIGHT + HEIGHT + CHEST + ABDOMEN + HIP + THIGH
+  Res.Df    RSS   Df  Sum of Sq    F     Pr(>F)
+1    247  4982.21                           
+2    244  4805.79  3   176.42    2.985737  0.9681407
+```
+Again, without using R and using only the information given in the regression summaries above, fill in the 8 missing values in the above output (you may use R only to calculate the p-value via the pf function).  
+
+> My answer:
+
+
+### Question 4
+
+Consider the ceodata.csv dataset. The data consists of 209 firms and has data on the salary of the ceo (in thousands of dollars), sales (in millions of dollars) and the firm type (which takes the four values: industry, finance, consumer product or utility). The data is from the year 1990. 
+
+a (1 + 2 = 3 points) Fit a regression in R via
+```
+m1 = lm(log(salary) ~ as.factor(FirmType), data = ceodata)
+```
+Interpret the coefficient estimates given by R. In the last line of summary(m1), R reports an F-statistic along with a p-value. What hypothesis is being tested here and what is the interpretation of the result of this test? 
+
+```{r}
+library(readr)
+ceodata <- read_csv("~/Downloads/HW6/ceodata.csv")
+m1<-lm(log(salary) ~ as.factor(FirmType),data=ceodata)
+summary(m1)
+```
+
+
+> My answer:  The hypothesis being tested is that all of the coefficients being tested are = 0 and the p-value of 3.868e-07<0.05 leads us to reject the null, so we believe that at least one of the coefficients is not = 0.
+
+b (3 points) Fit a regression in R via
+```
+m2 = lm(log(salary) ~ log(sales) + as.factor(FirmType), data = ceodata)
+```
+
+```{r}
+m2 = lm(log(salary) ~ log(sales) + as.factor(FirmType), data = ceodata)
+summary(m2)
+```
+
+Interpret the regression equation given by R. 
+
+> My answer: For each 1% increase in log(sales) there is a .24% increase in log(salary).  Only one of the coefficients of the factor variables can apply for each input of FirmType (if FirmType is finance, then only the FirmType finance coefficient applies).
+
+c (3 points) Fit a regression in R via
+```
+m3 = lm(log(salary) ~ log(sales) * as.factor(FirmType), data = ceodata)
+```
+Interpret the regression equation given by R. 
+
+```{r}
+m3 = lm(log(salary) ~ log(sales) * as.factor(FirmType), data = ceodata)
+summary(m3)
+```
+
+
+> My answer:  The explanatory variable is the log(sales) variable being interacted with the different factor variables for the response variable log(salary)
+
+d (1 + 2 points) What hypothesis is being tested by the function anova(m2, m3) in R? Interpret the results of this test. 
+
+```{r}
+anova(m2,m3)
+```
+
+
+> My answer: Given the high p-value, we can conclude that there is no significant difference between the two models, there was no significant difference from interacting the log(sales) and FirmType variables.
+
+### Question 5
+
+Take the bodyfat dataset which has 252 observations and 14 variables (this is larger in the number of variables compared to the dataset we used in class). Using each of the following methods, perform variable selection to select a subset of the explanatory variables for modeling the response (BODYFAT) variable: 
+
+   a Backward elimination using p-values. (3 points)
+   
+```{r}
+bfat <- read_csv("~/Downloads/HW6/bfat.csv")
+fit<-lm(BODYFAT~.,data=bfat)
+summary(fit)
+```
+
+> My answer
+
+```{r}
+fit<-update(fit,. ~ .-KNEE)
+summary(fit)
+```
+```{r}
+fit<-update(fit,. ~ .-CHEST)
+summary(fit)
+```
+```{r}
+fit<-update(fit,. ~ .-HEIGHT)
+summary(fit)
+```
+```{r}
+fit<-update(fit,. ~ .-ANKLE)
+summary(fit)
+```
+```{r}
+fit<-update(fit,. ~ .-BICEPS)
+summary(fit)
+```
+```{r}
+fit<-update(fit,. ~ .-HIP)
+summary(fit)
+```
+
+
+
+     b Forward selection using p-values (3 points)
+
+
+> My answer
+
+```{r}
+for (i in c(2,4:6,8:12)) {
+  g<-lm(BODYFAT~.,bfat[,c(1,3,7,13,14,i)])
+  print((summary(g))$coef)
+}
+
+```
+
+   
+   c Use regsubsets to select the best model based on RSS for each fixed number of variables. Compare the resulting models using cross-validation. (5 points)
+   
+> My answer:The lowest cross validation score out of the 8 equations belonged to equation 8 (BODYFAT~AGE+WEIGHT+NECK+ABDOMEN+HIP+THIGH+FOREARM+WRIST) with a score of 4829.885 compared to the full equation cross validaiton score of 5018.176
+
+```{r}
+library(leaps)
+b<-regsubsets(BODYFAT~.,bfat)
+r<-summary(b)
+r$which
+
+```
+1 variable: BODYFAT~ABDOMEN
+2: BODYFAT~WEIGHT+ABDOMEN
+3: BODYFAT~WEIGHT+ABDOMEN+WRIST
+4:BODYFAT~WEIGHT+ABDOMEN+FOREARM+WRIST
+5:BODYFAT~WEIGHT+NECK+ABDOMEN+FOREARM+WRIST
+6:BODYFAT~AGE+WEIGHT+ABDOMEN+THIGH+FOREARM+WRIST
+7:BODYFAT~AGE+WEIGHT+NECK+ABDOMEN+THIGH+FOREARM+WRIST
+8:BODYFAT~AGE+WEIGHT+NECK+ABDOMEN+HIP+THIGH+FOREARM+WRIST
+
+```{r}
+
+n<-nrow(bfat)
+pred.y<-rep(NA,n)
+for(i in 1:nrow(bfat)) {
+    g<-lm(BODYFAT~WEIGHT+ABDOMEN+WRIST+FOREARM+AGE+THIGH+NECK+HIP,bfat,subset=(1:n)[-i])
+    pred.y[i]<-predict(g,bfat[i,c("ABDOMEN","WEIGHT","WRIST","FOREARM","AGE","THIGH","NECK","HIP")])
+}
+er.8<-sum((bfat[,1]-pred.y)^2)
+
+```
+The lowest cross validation score out of the 8 equations belonged to equation 8 with a score of 4829.885 compared to the full equation cross validaiton score of 5018.176

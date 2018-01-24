@@ -1,0 +1,143 @@
+---
+title: "HW5"
+author: "STAT 28"
+output:
+  pdf_document
+header-includes:
+- \usepackage{framed}
+- \usepackage{xcolor}
+- \let\oldquote=\quote
+- \let\endoldquote=\endquote
+- \colorlet{shadecolor}{orange!15}
+- \renewenvironment{quote}{\begin{shaded*}\begin{oldquote}}{\end{oldquote}\end{shaded*}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,tidy.opts=list(width.cutoff=60))
+```
+
+For several of the questions in this HW, we are going to use the visualization tools (heatmaps and PCAs) to learn about an unknown dataset. This dataset comes from the daily measures of sensors in a urban waste water treatment plant [https://archive.ics.uci.edu/ml/datasets/Water+Treatment+Plant]. The measurements are all continuous, and are described in `VariableDescriptions.txt` file that comes with the homework. However, these are not "intuitive" variables, since they are measurements of various chemical properties of the water, so we don't expect you to understand the measurements. But we will use some of our visualization techniques to get a sense of the data, even though we don't have an intuitive sense of the meaning of the variables. 
+
+There are also variables that are related to the date in which the observations were collected (e.g. `Date`, `Month`, `Season`). For simplicity, we have removed days with NA values in any of the sensors, though this is not ideal for data analysis. 
+
+First we will provide you with some code to read in the data, and we will set up some factors and colors for the date-related variables. 
+
+```{r readInData}
+water<-read.csv(file = "water-treatment-cleaned.csv", header = TRUE, stringsAsFactors = FALSE)
+water$Month<-factor(water$Month,levels=month.name)
+water$Day<-factor(water$Day,levels=weekdays(x=as.Date(seq(7), origin="1950-01-01")))
+colDays<-palette()
+names(colDays)<-levels(water$Day)
+library(RColorBrewer)
+colMonths<-c("coral4",brewer.pal(11, "Spectral"))
+names(colMonths)<-levels(water$Month)
+colYear<-c("blue","green")
+names(colYear)<-levels(water$Year)
+colSeason<-c("Blue","Green","Red","Brown")
+names(colSeason)<-c("Winter","Spring","Summer","Fall")
+# to be used for the colors of the heatmap:
+seqPal2<- colorRampPalette(c("orange","black","blue"))(16)
+seqPal2<-(c("yellow","gold2",seqPal2))
+seqPal2<-rev(seqPal2)
+```
+
+
+**Question 1:**  Heatmaps
+
+(a) (5 points) Create a simple heatmap of this data using `aheatmap` with: the color scale given by `seqPal2` (created above in the code you were given) and with `scale="columns"` so that the variables are centered and scaled to be comparable. Make sure you install the package `NMF` if needed. [Hint: you need to subset your data to only the numeric variables]. 
+
+You should easily see that this will not be a useful visualization without limiting the influence of outlier entries.
+
+```{r basicHeatmap, message=FALSE}
+library(NMF)
+# add code here for basic heatmap
+num_water<-water[,6:43]
+aheatmap(num_water,color=seqPal2,scale="column")
+```
+
+(b) (20 points) Now you are going to make a nice heatmap. Namely, you are going to fix the color scale like we did in class for the breast cancer data, and add information about the day, month, season, and year to the heatmap.
+
+Below, I have given a start to code to find breakpoints for better coloring of your data. Using the previous heatmap above as your guidence, fill in the missing elements (indicated with `??`) in the following code to create a better set of breakpoints. [Hint: you need your breaks to be for the *scaled* data]. 
+
+Use these breakpoints to create a better heatmap for the data. Also add annotation on the samples/days corresponding to `Month`,`Day`,`Year`,`Season` using the colors created above. [Hint: look at the .Rmd/.html file from the 04Chapter to see how to set these colors]
+
+```{r betterHeatmap}
+# Add code here and fix existing code to get better heatmap
+colMedian<-apply(num_water,2,median)
+water_cent<-sweep(num_water,MARGIN=2,colMedian,"-")
+m<-max(abs(water_cent[,-1]))
+qnt<-max(abs(quantile(as.numeric(data.matrix((water_cent[,-1]))),c(0.01,.99))))
+brks<-seq(-qnt,qnt,length=49) 
+
+breaks_cnt<-c(-m,brks,m) 
+aheatmap(water_cent,Rowv=FALSE,Colv =FALSE,breaks=breaks_cnt,labRow=NA,col=seqPal2,annRow=water[,2:5],annColors=list("Month"=colMonths,"Day"=colDays,"Year"=colYear,"Season"=colSeason))
+```
+
+(c) (5 points) Comment on the results of your heatmap? Does it help you find patterns in the variables? In the samples/days? Describe what patterns you see. You can look at the variable descriptions if you find it helpful, but you mainly need to describe the patterns you see in the heatmap.
+
+> My answer is: There are patterns particularly with the COND variables, but not with the other variables except DQO.E.  Even with the COND variables though there is a large variation between high and low values.  However there is a lot of noise regarding the different months of the year and days of the week.
+
+**Question 2:**  PCA
+
+(a) (10 points) Perform a PCA of this data and plot a scatterplot of the samples based on the first 2 principal coordinates.
+
+```{r PCA}
+# add code here for pca and scatterplot
+pcaWater<-prcomp(num_water,center=TRUE,scale=TRUE)
+plot(pcaWater$x[,1:2])
+
+```
+
+(b) (10 points) There are 1-2 observations that seem perhaps far away from the other points and might be influencing our visualization or PCA. Identify them, and remove them and redo the PCA and the scatterplot.  Make sure in your R code to print out the date of the observation(s) you remove. 
+
+```{r PCAMinusOutliers}
+# add code here for pca and scatterplot
+no_out<-pcaWater$x[pcaWater$x[,2]<10,]
+plot(no_out[,1:2])
+water$Date[109]
+water$Date[4]
+
+```
+
+If you are interested, you can use the function `identify` to find these points (see help of `identify`). This is an interactive feature in R, but you can use it to find the points, and then once you find them, you can hard-code in your code which ones they are. This is just for interest -- you do not have to do this.
+
+(c) (10 points) Evaluate how many PCA coordinates seem needed to describe this data.
+
+```{r PCANCoords}
+# add code here finding the number of coordinates
+plot(pcaWater$sdev^2/sum(pcaWater$sdev^2),ylab="Percentage of Variance")
+```
+
+> My answer is: Taking a look at the percentage of variance for each of the PCAs there is a large dropoff in the percentage of variance after the third PCA
+
+(d) (20 points) Plot the observations using these number of coordinates you decided on in (c) [Hint: Use pairs plots if needed]. Color code the observations for `Month`,`Day`,`Year`,`Season` using the given color schemes. Comment on whether the data seems to show any patterns based on the date.
+
+```{r PCAColored}
+# add code here plotting PCA and coloring points
+pcaWater$x<-pcaWater$x[-c(4,109),]
+pairs(pcaWater$x[,1:3],col=colMonths[water$Month],main="Months")
+pairs(pcaWater$x[,1:3],col=colDays[water$Day],main="Days")
+pairs(pcaWater$x[,1:3],col=colSeason[water$Season],main="Seasons")
+pairs(pcaWater$x[,1:3],col=colYear,main="Years")
+
+
+
+```
+
+> My answer is: Based on the pairs plots corresponding with the date, there are no patterns that come about from the pairs plots except that the green values for the seasons (spring) seem to be more on the extremes compared to the other points.
+
+(e) (20 points) Calculate the correlation matrix between the original variables and the new PC coordinates; choose to not reorder the PCs with hierarchical clustering, but rather keep them in their logical order. 
+
+What does this tell you about the relationship between the PC dimensions and the original coordinates? Does this match the information in the heatmap in any way?
+
+```{r PCACor}
+# add code here for heatmap of correlation matrix
+
+
+whNAwater<-attributes(na.omit(num_water))[["na.action"]]
+pcaWater<-prcomp(water[,-c(1:5)],center=TRUE,scale=FALSE)
+corPcaWater<-cor(pcaWater$x,num_water)
+aheatmap(corPcaWater[1:3,],Colv=NA,col=seqPal2)
+```
+
+> My answer is: The different PCAs seem to correlate strongly with the few variables that had values other than zero in the previous heatmap.  The different COND variables are once again showing high values and this time with PC2 and the Q.E.variable also shows an incredibly high correlation with PC1.  PC3 shows negatively correlated values with SED.p, SED.e, RD.SS.p,SS.p, and SS.e.

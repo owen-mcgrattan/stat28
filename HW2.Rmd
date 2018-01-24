@@ -1,0 +1,243 @@
+---
+title: "HW2"
+author: "STAT 28"
+output:
+  pdf_document
+header-includes:
+- \usepackage{framed}
+- \usepackage{xcolor}
+- \let\oldquote=\quote
+- \let\endoldquote=\endquote
+- \colorlet{shadecolor}{orange!15}
+- \renewenvironment{quote}{\begin{shaded*}\begin{oldquote}}{\end{oldquote}\end{shaded*}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+```
+
+1. Below I have copied over my function for running a permutation test from lecture that you can use for the rest of this homework. 
+
+	```{r permFunction}
+	permutation.test <- function(group1,group2, FUN, repetitions){ 
+	  makePermutedStats<-function(){
+	      sampled <- sample(1:length(c(group1,group2)), size=length(group1),replace=FALSE)
+	      return(FUN(c(group1,group2)[sampled], c(group1,group2)[-sampled]))
+	  }
+	  stat.obs <- FUN(group1,  group2)
+	  stat.permute <-replicate(repetitions,makePermutedStats()) 
+	  p.value <- sum(stat.permute >= stat.obs) / repetitions
+	  return(list(p.value=p.value,observedStat=stat.obs,permutedStats=stat.permute))
+	}
+	```
+	a. (10 points) Inside `permutation.test` there is a function defined called `makePermutedStats`. I claim that this function simulates a single permutation of the data and returns the statistic defined by `FUN`. Explain in detail how this function works and why this is a correct implementation for calculating the statistic of a single permutation of the data. 
+	
+	> makePermutedStats samples from both groups without replacement and creates two random samples that are the same length as group1 and group2.  Then the function FUN is run on the samples and the permuted stat is returned.
+	
+	b. (5 points) Now explain the rest of the function, i.e. what the 4 lines after the definition of `makePermutedStats` do. 
+	
+	> After makePermutedStats, the observed statistic is calculated with the original two groups. Then the permuted stats are created for the number of repetitions specified.  The pvalue is then calculated.
+
+2. **Evaluating whether a test gives valid p-values** In this problem, we will go through a simple example of how you can use simulation from known distributions to determine whether a hypothesis test will perform well. We will only compare very simple settings, but this gives an idea of how you can use simulation to explore the performance of a test.
+
+	A Type I error is where you wrongly reject the null hypothesis when in fact it is true. We have said in class that a hypothesis test is a valid test if it correctly controls Type I error for a given level, i.e. if you perform a hypothesis test at level 0.05 *when in fact the null hypothesis is true*, then you will incorrectly reject the null hypothesis 5% of the time. 
+
+     a. (15 points) Estimate the Type I error of the t-test when the data of the two groups is normal. Specifically, repeat the following simulation 10,000 times using the `replicate` function: 1) Simulate two groups of data each with 20 observations from a normal distribution. For the first group, let the standard deviation be 2.5, and for the second group the standard deviation be 5; both groups have mean 10. 2) Calculate the p-value of the t-test on this simulated data. Based on these simulations, report the type I error of the t-test.
+	 
+	```{r typeIErrorTtest}
+	#Enter code here for function that creates a single simulation of the data 
+ #and returns the p-value for that single simulation:
+ 
+ f<-function(){
+    group1<-rnorm(20,mean=10,sd=2.5)
+    group2<-rnorm(20,mean=10,sd=5)
+    p.value<-t.test(group1,group2)$p.value
+    return(p.value)
+ }
+ 
+	
+	# Enter code here that uses replicate to repeat this 10,000 times 
+	pval<-f()
+	replicated<-replicate(10000,f())
+
+	# Now use that output to estimate the Type I error.
+	typeI<-length(replicated[replicated<0.05])/10000
+	typeI
+	```
+	 
+	 > Type I error: 0.0518
+	
+	b. (10 points) Repeat the same simulation as above, only now make the data in both of the groups be generated from F distribution with parameters `df1=3` and `df2=12` (like in HW1); again make each group have 20 observations. What do you observe?
+	
+	```{r typeIErrorFdist_ttest}
+	# Enter code here for simulation of the t-test from the F
+	# Reuse the code from above as applicable
+	f<-function(){
+    group1<-rf(20,df1=3,df2=12)
+    group2<-rf(20,df1=3,df2=12)
+    p.value<-t.test(group1,group2)$p.value
+    return(p.value)
+	}
+	pval<-f()
+	replicated<-replicate(10000,f())
+
+	typeI<-length(replicated[replicated<0.05])/10000
+	typeI
+	```
+
+	 > Type I error: 0.0409
+	 > Based on this error, there is a low probability that we would incorrectly reject the null hypothesis when we know that it should be true. It is interesting to see even this type I error that comes about as randomness since we are using the same degrees of freedom for both distributions.
+	
+	c. (15 points) We can also consider another type of error: when you do *not* reject the null, when in fact the two groups are different. This is called a Type II error and we can consider the probability of a test making a Type II error. An equivalent notion is that of the *power* of a test. The power is defined as the probability you will correctly reject the null when it is not true, i.e. power=1-P(Type II error).
+	
+	We are going to repeat the simulation from part a, only now focusing on calculating the power of the t-test. To do this, now make the mean in group 2 greater than the mean in group 1 so that the null hypothesis is not true. Specifically, let the mean for group 2 be 1,2,3,4, and 5 units bigger than that of group 1. Write a for-loop that for each of these 5 differences, will repeat the simulation in part a, only now calculate the power, i.e. the probability that the test *will* reject the null. Demonstrate the results by plotting the power as a function of the difference in the means (i.e. power on y-axis, difference of the means on the x-axis). Interpret what these results mean.
+	
+	```{r power_ttest_diffMeans}
+	# Enter code here for calculating the power for different changes in the mean
+  errors<-c()
+  for (i in 1:5){
+	  f<-function(){
+    group1<-rnorm(20,mean=10,sd=2.5)
+    group2<-rnorm(20,mean=10+i,sd=5)
+    p.value<-t.test(group1,group2)$p.value
+    return(p.value)
+    }
+    mean.diff<-c(1,2,3,4,5)
+	  pval<-f()
+	  replicated<-replicate(10000,f())
+	  
+	  
+    typeII<-1-length(replicated[replicated>0.05])/10000
+    errors<-append(errors,typeII)
+	}
+
+```
+```{r}
+plot(mean.diff,errors)
+
+```
+
+		> As the difference in means increases so does the power. It tells us that as the difference in means increases, so does our probability of correctly rejecting the null when it is not true.
+		errors: 0.1191 0.3364 0.6418 0.8710 0.9685
+	
+	d. (10 points) Repeat the above simulation, only now fix group 2 to have a mean 1 unit bigger than the mean of group 1. Now write a for-loop that calculates the power of the test as you change the sample size of each of the groups to be 10,15,20,30,50. Similarly demonstrate the results by plotting the power as a function of the sample size and interpret the results.
+	
+	```{r power_ttest_sampleSize}
+	# Enter code here for calculating the power for different sample sizes
+	size.error<-c()
+	for (i in c(10,15,20,30,50)){
+	  f<-function(){
+     group1<-rnorm(20,mean=10,sd=2.5)
+     group2<-rnorm(i,mean=11,sd=5)
+      p.value<-t.test(group1,group2)$p.value
+      return(p.value)
+      }
+      sample.size<-c(10,15,20,30,50)
+	  pval<-f()
+	  replicated<-replicate(10000,f())
+	  
+    typeII<-1-length(replicated[replicated>0.05])/10000
+    size.error<-append(size.error,typeII)
+	}
+	
+	plot(sample.size,size.error)
+	```
+	
+	
+	> As the sample size increases the power increases as well. The differences between the means of the two groups is small so it would be expected that the predictability would increase as the sample size increased. 
+	
+	e. (5 points) How could you compare the validity and power of the permutation test to the t-test? (Just use words to describe what you would do, without actually coding it)
+	> I would run through numerous permutations tests and t-tests and see which would return the smaller type I error and larger power.
+ 
+2. Consider the data from HW1 containing information on predicting heart disease in patients. We have provided another copy of the data with this HW, to avoid having to find the data from last time. Read the data in again,
+
+    ```{r readInData}
+    heart<-read.csv("heartDisease.csv",header=TRUE)
+    head(heart)
+    ```
+
+	a. (8 points) Perform a t-test comparing the resting systolic blood pressure in those with chest-pain type any type of angina (i.e. `cp` either `typical angina` or `atypical angina`) and those with non-anginal pain. What do you conclude?
+	
+	```{r ttest_anginaVsNonAngina}
+	# code for running t-test
+	angina<-heart[heart$cp==c(1,2),]
+	non.angina<-heart[heart$cp==c(3),]
+	t.test<-t.test(angina$trestbps,non.angina$trestbps) 
+	```
+	
+	> My answer is: There appears to be no significant difference between the two groups of resting blood pressures with a p-value of 0.8859.
+	
+	b. (8 points) Repeat the above, using a permutation test based on the t-statistic instead and give your conclusions.
+	
+	```{r permtest_anginaVsNonAngina}
+	# code for running permutation test
+	  tstatFUN<-function(group1,group2){
+	    abs(t.test(group1,group2)$statistic)
+	  }
+	  permutation<-permutation.test(angina$trestbps,non.angina$trestbps,FUN=tstatFUN,10000)
+	  permutation$p.value
+	```
+
+	> My answer is: Based on the permutation test of 10000 repetitions, there is no significant difference between the two groups, registering a p.value of 0.8896.
+	
+	c. (10 points) Compare the null hypothesis of the t-test and the permutation test for this data by plotting the density curve for both null hypotheses on the same plot. For the permutation test, you should plot an kernel density estimate of the curve (not the histogram). Color the t-test black and the permutation test red and provide a legend. How do they compare? 
+	
+	```{r nullDensities}
+	# code for plotting the densities of the two null distributions
+
+	plot(curve(dt(x,df=67.8),col='black',from=-10,to=10))
+	par(new=TRUE)
+	c<-density(permutation$permutedStats)
+	plot(c,col='red',from=-10,to=10)
+	legend("topright",legend=c("t density","kernel density"))
+	```
+	
+	> My answer is: The t density is shaped more like a normal distribution centered near 0 and the kernel density is skewed to the right and is centered around 2.
+	
+	d. (20 points) Of greater interest than the reported type of pain, is the actual diagnosis. Recall, the diagnosis was encoded from 0-4, with 0 being no heart disease diagnosed. Use a permutation test based on the t-statistic to test the difference in resting systolic blood pressure between all of these diagnosis levels, i.e. all pairwise comparisons. 
+	
+	Recall the steps in the lecture code (available on bcourses):
+	 
+	* Create a matrix that gives all the pairwise combinations using `combinations` function in the `gtools` package. You may need to install this package with `install.packages` if you are working on your own computer. 
+	* Create a function that takes x, the values of the different groups, and calculates the results of the permutation test
+	* Run this function on each combination using the `apply` function. 
+	
+	You should reuse the code from the lecture and adapt it to this problem. For your convenience, I have copied over the permutation test function given in lecture:
+	
+	
+	Now add code, based on adapting the lecture code, to do pair-wise permutation tests of all of the (5) levels of diagnosis and interpret your results
+	
+	```{r multiplePermTests}
+	# Code for doing permutation tests on all combinations
+	library(gtools)
+	
+#cp<-levels(as.factor(heart$cp))
+#ncps<-length(cp)
+#npairs<-choose(ncps,2)
+#pairs<-combinations(r=2,v=cp,n=length(cp)) 
+
+#permu.test.FUN<-function(x,variableName){
+#	permu<-permutation.test(group1=heart$testbps[heart[,variableName] == #x[1]],group2=heart$testbps[heart[,variableName] == #x[2]],repetitions=100,FUN=find.diffmean)
+#	unlist(permu[c("p.value")]) #unlist makes it a vector rather than list
+#}
+#perm.testPairs<-apply(X=pairs,MARGIN=1,FUN=permu.test.FUN,variableName="cp")
+
+  ```
+	
+	> My answer is:
+	
+	e. (10 points) Use Bonferroni adjustments to correct for multiple testing of your above results. How did this affect your results?
+	
+	```{r Bonferroni}
+	# code to use Bonferroni multiple testing correction
+	
+	```
+	
+	> My answer is ...
+	
+	f. (5 points) An healthy systolic blood pressure is around 120 mm Hg, though it varies by person. Given this, comment on the choice of the t-statistic, i.e. is it a reasonable statistic to use, and why? If not, propose a different one. 
+	
+	> My answer is ...
+	
+	
+	

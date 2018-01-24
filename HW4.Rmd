@@ -1,0 +1,116 @@
+---
+title: "HW4"
+author: "STAT 28"
+output:
+  pdf_document
+header-includes:
+- \usepackage{framed}
+- \usepackage{xcolor}
+- \let\oldquote=\quote
+- \let\endoldquote=\endquote
+- \colorlet{shadecolor}{orange!15}
+- \renewenvironment{quote}{\begin{shaded*}\begin{oldquote}}{\end{oldquote}\end{shaded*}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy=TRUE,tidy.opts=list(width.cutoff=50))
+```
+
+We are going to use the fitbit data again. However, I have changed some of the column names, so make sure you use the dataset attached with this homework. 
+
+Below is code to read in the data. The rest of the code will convert the `Date` variable into a standard date class used by R, and then create variables that give the day of the week and the month of the date. 
+
+```{r readinFitbit}
+fitbit<-read.csv("fitbit.csv",header=TRUE)
+fitbit$Date<-as.Date(as.character(fitbit$Date),format="%d-%m-%Y")
+fitbit$Day<-factor(weekdays(fitbit$Date),levels=weekdays(x=as.Date(seq(7), origin="1950-01-01")))
+fitbit$Month<-factor(months(fitbit$Date),levels=month.name)
+```
+
+Notice how I explicitly give the function `factor` the levels to expect. This allows me to define what order they will be in, so I can force them to be in a proper order for days/months (to save myself typing and possible typos, I used built in functions in R to find the names of months and weeks in the right order, but I could have just typed them out too). 
+
+
+**Question 1:** (5 points) The below code changes the dataset to convert the minutes to percentages of the total, like the last homework, in addition to other changes. Describe what lines 3-5 do. You may need to look at the `help` of the function `gsub` and `abbreviate`. 
+
+```{r modifyDataSet}
+totalNumberOfMinutes <- fitbit$MinutesOfSleep + fitbit$MinutesOfLightActivity + fitbit$MinutesOfModerateActivity + fitbit$MinutesOfSedentaryActivities + fitbit$MinutesOfIntenseActivity #LINE 1
+absoluteMinNames<-c("MinutesOfSedentaryActivities","MinutesOfLightActivity","MinutesOfModerateActivity" , "MinutesOfIntenseActivity" , "activityCalories","MinutesOfSleep", "MinutesOfBeingAwake" ,        
+"NumberOfAwakings","MinutesOfRest") #LINE 2
+fitbit[,absoluteMinNames]<-fitbit[,absoluteMinNames]/totalNumberOfMinutes  #LINE 3
+names(fitbit)<-gsub("Minutes","pctMin",names(fitbit)) #LINE 4
+names(fitbit)<-abbreviate(names(fitbit),10) #LINE 5
+```
+
+> My answer: Line 4 replaces any of the text in the fitbit names where "Minute" appears and replaces it with "pctMin".  Line 5 abbreviates all the fitbit names to be 10 characters or less by first eliminating spaces, then lower case vowels, then lower case consonants.
+
+In future questions make sure you use this modified data.frame.
+
+**Question 2:** (10 points) Create a pairs plot using the varaibles `caloriesBurned`,  `steps`,  `pctMinOfIntenseActivity`,  `Month` and `Day`. Instead of the default, put boxplots on both the upper and lower diagonal for the categorical variables (not just the lower). Comment which variables appear to have a strong pairwise relationship and which do not. 
+
+```{r pairsPlot}
+#Code for pairs plot here.
+variables<-c("calorsBrnd","steps","pctMnOfInA","Month","Day")
+shortened<-fitbit[,variables]
+library(gpairs)
+gpairs(shortened,
+       upper.pars = list(
+                        conditional = "boxplot"
+                         ),
+       lower.pars = list(
+                         conditional = "boxplot"),
+       diagonal = "default")
+```
+
+> My answer:  Calories burned and steps have a strong connection to one another but not for percent minutes of intense activity and steps.
+
+**Question 3:** (10 points) Use `corrgram` to plot all of the continuous variables in the dataset [Hint: look carefully at the variables, including `distance`, before you start plotting ]. Comment on what you see. 
+
+```{r corrPlot}
+#Code for corrgram plot here.
+continuous<-fitbit[,c(2:3,5:14)]
+corrgram(continuous)
+```
+
+> My answer: As expected there is a strong negative associaiton between minutes of sedentary activity with the other levels of activity and there is a strong positive association between calories burned and steps taken.  There are negative associations between the different levels of activity and the time spent asleep and the time spent resting.
+
+**Question 4:** 
+
+(a) (5 points) Plot the percent of sedentary activity as a function of `Date`, making sure to remove the (practically) zero values as in HW3 [See solutions of HW3 if you were not able to do this successfully yourself]. Color the points according the day of the week and give a legend. We have defined the colors for you in the following chunk with the vector `colWeek`.
+
+```{r plotByDate}
+colWeek<-palette()[1:nlevels(fitbit$Day)]
+names(colWeek)<-levels(fitbit$Day)
+colWeek
+# code to plot sedentary against date
+nonzero<-fitbit[fitbit$pctMnOfSdA>0.2,]
+
+#Creates a variable that attaches the colors to the days
+
+nonzero$color<-ifelse(nonzero$Day=="Monday","black",ifelse(nonzero$Day=="Tuesday","red",ifelse(nonzero$Day=="Wednesday","green3",ifelse(nonzero$Day=="Thursday","blue",ifelse(nonzero$Day=="Friday","cyan",ifelse(nonzero$Day=="Saturday","magenta",ifelse(nonzero$Day=="Sunday","yellow","")))))))
+
+plot(nonzero$Date,nonzero$pctMnOfSdA,col=nonzero$color)
+
+legend("topleft",pch=c(1,1),legend=c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"),col=c(colWeek),cex = 0.3)
+
+```
+
+(b) (10 points) Draw loess lines for for each day of the week that fit the percent of sedentary activity as a function of date. The loess lines should all be on the same plot.  Color each line by the day of the week, as in the previous plot, and include a legend. Use the `by` function to do this. 
+
+The first line of your code should set up a blank plot. Do this by reusing your code from (a) above (i.e. that plots sedentary against the data), but include the argument `type="n"` in your plot command. This instructs R to set up the axes, etc. but not actually plot the points. 
+
+```{r plotLoessPerDay}
+# code to plot loess lines
+
+colWeek<-palette()[1:nlevels(nonzero$Day)]
+names(colWeek)<-levels(nonzero$Day)
+
+plot(nonzero$Date,nonzero$pctMnOfSdA,col=nonzero$color,ylab="PctMnOfSedAct",xlab="Date",type = "n")
+by(nonzero,nonzero$Day,function(x){
+  lines(loess.smooth(x=nonzero$Date, y=nonzero$pctMnOfSdA),col=colWeek[unique(nonzero$Day)])
+})                                                    
+
+```
+
+(c) (5 points) Comment on whether there are any difference due to the day of the week.
+
+> My answer

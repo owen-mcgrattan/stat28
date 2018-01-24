@@ -1,0 +1,215 @@
+---
+title: "HW3"
+author: "STAT 28"
+output:
+  pdf_document
+header-includes:
+- \usepackage{framed}
+- \usepackage{xcolor}
+- \let\oldquote=\quote
+- \let\endoldquote=\endquote
+- \colorlet{shadecolor}{orange!15}
+- \renewenvironment{quote}{\begin{shaded*}\begin{oldquote}}{\end{oldquote}\end{shaded*}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+```
+
+1. Answer the following TRUE/FALSE questions, and explain your reason. 
+	a. (5 points) Bootstrap confidence intervals are better than parametric confidence intervals based on the t/normal distribution because bootstrap confidence intervals do not make any assumptions.
+	
+	> My answer:False. The bootstrap confidence intervals come with the assumption that n is not too small and that the data is a SRS.
+	
+	b. (5 points) Assume I make a 99% confidence interval of the difference in the means between two groups, based on the parametric normality assumptions. If this confidence interval does not cover 0, then I can reject the null hypothesis that the means are equal at level 0.05. 
+	
+	> My answer:True. If the 99% confidence interval does not cover 0 then the 95% confidence interval does not cover 0 as well. The 99% confidence interval is a wider interval so you can reject the null at the .005 level.
+	
+	c. (5 points) Suppose I test whether the means of two groups are equal, and get a p-value of 0.05. Then the probability that the means are not equal is 0.95. 
+	
+	> My answer: False. There is a .95 probability of oberving a difference between means smaller than or equal to the original observed statistic.  The p-value does not give probability of the difference between means being 0.
+	
+2. (5 points) Consider the question of comparing the difference between two groups. We decide to use the difference in the means to evaluate whether there is any significant difference between the two groups. One of the histograms below is the histogram of difference in the medians from the permutations in the permutation test comparing these two groups. The other histogram is the histogram of the difference in the medians from bootstrap resampling of the data to create confidence intervals. Which is which? (explain your reasoning)
+
+	```{r bringInBlindData}
+	blindData<-read.table("blindData.txt",sep="\t",header=FALSE)
+	par(mfrow=c(1,2))
+	hist(blindData[,1],breaks=100,main="Plot A",xlab="")
+	hist(blindData[,2],breaks=100,main="Plot B",xlab="")
+	```
+
+	> My answer:Plot B is the bootstrapped historgram because the replaced values will bring the difference in medians closer and closer to 0.
+	
+3. Consider the bootstrap function I wrote in class for getting bootstrap confidence intervals for the results of fitting a line to the data using squared error.
+
+	```{bootstrapLmFunction}
+	bootstrapLM <- function(y,x, repetitions, confidence.level=0.95){
+	  stat.obs <- coef(lm(y~x))
+	  bootFun<-function(){
+		  sampled <- sample(1:length(y), size=length(y),replace = TRUE)
+		  coef(lm(y[sampled]~x[sampled]))
+	  }  
+	  stat.boot<-replicate(repetitions,bootFun())
+	  #this next line is advanced, but simply finds the name of the input x value.
+	  nm <-deparse(substitute(x))
+	  row.names(stat.boot)[2]<-nm
+	  level<-1-confidence.level
+	  confidence.interval <- apply(stat.boot,1,quantile,probs=c(level/2,1-level/2))  ###LINE 12
+	  out<-cbind("lower"=confidence.interval[1,],"estimate"=stat.obs,"upper"=confidence.interval[2,])
+	  return(list(confidence.interval = out, bootStats=stat.boot))
+	}
+	```
+	a. (5 points) Explain what the function `bootFun` does. Specifically, what does the two lines of code within `bootFun` do, what type of output does `bootFun` return (a character string? A number? A vector? A list? A matrix?)
+	
+	> My answer:  The bootFun function samples numbers with replacement in a group from 1 to the length of y that are then the indicies for for x and y.  The second line provides a linear fit between the random samples for the x and y groups and the coefficients from that linear fit are returned. The coefficients are returned are as a list.
+	
+	b. (5 points) Explain what type of object `stat.boot` is (a character string? A number? A vector? A list? A matrix?) and describe what are its actual entries 
+	
+	> My answer:  Stat.boot is a matrix that runs the bootFun replications amount of times. It returns replications amount of sets of coefficients.
+	
+	c. (5 points) Explain what LINE 12 of the code does (marked above). 
+	
+	> My answer: Line 12 takes the upper and lower quantiles of the values in stat.boot.
+	
+	
+4. In the file `fitbit.csv` we have information from a fitbit device for a single person over the year. A fitbit device is something someone wears that records information regarding your activites throughout the day: your level of activity, the number of calories burned, the amount slept, etc (the company's website is www.fitbit.com). 
+
+	The data that we have here is summarize per day, so that each entry of the data corresponds to a particular date. 
+	
+	The following code should read in the data and print out data from the first 5 rows of the first 8 columns.
+	
+	```{r readInFitbit}
+	fitbit<-read.csv("fitbit.csv",header=TRUE)
+	head(fitbit[,1:8])
+	```
+
+	a. (5 points) Many of the variables in this data set quantify the number of minutes spent doing activities, including sleeping. In principle, we might assume that these minutes should cover the whole day. However, the device might have been turned off or taken off at some point. 
+	
+	Let's consider this question. Look at the following variables: `MinutesOfSleep`, `minutesOfLightActivity`, `minutesOfModerateActivity`, `minutesOfSedentaryActivities`, and `minutesOfIntenseActivity`. How well do these sum up to cover the entire day?
+	
+	```{r totalMinutes}
+	# code to evaluate the total number of minutes
+	minutes<-fitbit[,c("MinutesOfSleep","minutesOfLightActivity","minutesOfModerateActivity","minutesOfSedentaryActivities","minutesOfIntenseActivity")]
+	means<-0
+	total_minutes<-for(i in 1:5){
+	   m<-mean(minutes[,i])
+	   means<-means+m
+	}
+	means
+	
+	```
+	
+	> My answer: The sum of the means comes to be 1154 minutes out of 1440 minutes in the day so it appears that there are users who turn off their fitbits or use their fitbits in more unpredictable ways.
+	
+	b. (5 points) Going forward, we are going to consider the question of whether the amount of sedentary activity is predictive of the minutes of sleep per night. We are going to first normalize our data, so that both of these quantities are out of the total amount of minutes recorded in the day with the device. Calculate the total number of minutes recorded each day in the variables from part a, and make new variables `pctAsleep` and `pctSedentary` that are the percentage of all tracked minutes. Print out a `summary` of each of these variables to show that it worked.
+	
+	```{r makePercentVariables}
+	#code to make new variables as percent of total minutes.
+	minutes.pct<-fitbit[,c("MinutesOfSleep","minutesOfLightActivity","minutesOfModerateActivity","minutesOfSedentaryActivities","minutesOfIntenseActivity")]
+
+for(i in 1:368){
+  minutes.pct[i,]<-minutes.pct[i,]/sum(minutes.pct[i,])*100
+}
+
+minutes.pct$pctAsleep<-minutes[,"MinutesOfSleep"]/1440*100
+minutes.pct$pctSedentary<-minutes[,"minutesOfSedentaryActivities"]/1440*100
+summary(minutes.pct$pctAsleep)
+summary(minutes.pct$pctSedentary)
+	
+	```
+	
+	
+	c. (10 points) Make a plot of `MinutesAsleep` against `minutesOfSedentaryActivites` and another plot of `pctAsleep` against `pctSedentary`. For the minutes plot, convert the minutes into hours. Use `par(mfrow= ...)` to make the two plots side-by-side, and label the two plots appropriately. Comment on the affect of converting them to percentages.
+	
+	```{r plotAsleepVsSedentary}
+	# code to plot the two plots side-by-side
+	par(mfrow=c(1,2))
+	plot(minutes$minutesOfSedentaryActivities/60,minutes$MinutesOfSleep/60,ylab="HoursOfSleep",xlab="HoursOfSedentaryActivities")
+	plot(minutes.pct$pctSedentary,minutes.pct$pctAsleep,ylab="pctAsleep",xlab="pctSedentary")
+	```
+	
+	> My answer: Converting to percentages makes everything much easier to comprehend and translate versus thinking of how many hours of the day is relevant enough information.
+	
+	d. (10 points) Plot the variable `pctAsleep` against `pctSedentary` like above, only now draw in the least squares regression line. Also print out the coefficients of the lines. Interpret the line and plots; be specific to this data -- e.g. as you increase percent of time spent in sedentary minutes by 10%, how is `pctAsleep` predicted to change?
+	
+	```{r plotRegression}
+	# Code here for plot with regression line
+	plot(minutes.pct$pctSedentary,minutes.pct$pctAsleep,ylab="pctAsleep",xlab="pctSedentary")
+	fit<-lm(minutes.pct$pctAsleep~minutes.pct$pctSedentary)
+	abline(fit)
+	coef(fit)
+	
+	```
+	
+	> My answer: The outliers are greatly affecting the regression line, ultimately leading us to think that the pctSedentary increases 10%, the pctAsleep increases 5%
+	
+	e. (10 points) We might consider the effect of the (practically) zero levels of sedentary activity. Remove these points from the above analysis in d, and compare the results to that found in d, and draw conclusions as to the effect of these data points. What conclusion would you draw as to whether they should be included in the analysis? 
+	
+	```{r plotRegressionNoZero}
+	# Code here for plot with regression line removing zero sedentary
+	minutes.correct<-minutes.pct[minutes.pct$pctSedentary>1,]
+	plot(minutes.correct$pctSedentary,minutes.correct$pctAsleep,xlab="pctSedentary",ylab="pctAsleep")
+	abline(lm(minutes.correct$pctAsleep~minutes.correct$pctSedentary))
+	```
+	
+	> My answer: When analyzing the relationship between sedentary time and sleep it is important that the outliers are removed, but those removed points are still important to the whole of the fitbit data because it still holds information on how the product is used by consumers.
+	
+	f. (10 points) Create bootstrap confidence intervals as well as parametric confidence intervals for the coefficients of the regression you found in e. (you can use the code from question 3). Plot the resulting confidence intervals and compare them.
+	
+	```{r bootCI}
+	# Code here bootstrap and parametric confidence intervals
+	
+	y<-minutes.correct$pctAsleep
+	x<-minutes.correct$pctSedentary
+	bootstrapLM <- function(y,x, repetitions, confidence.level=0.95){
+	  stat.obs <- coef(lm(y~x))
+	  bootFun<-function(){
+		  sampled <- sample(1:length(y), size=length(y),replace = TRUE)
+		  coef(lm(y[sampled]~x[sampled]))
+	  }  
+	  stat.boot<-replicate(repetitions,bootFun())
+	  #this next line is advanced, but simply finds the name of the input x value.
+	  nm <-deparse(substitute(x))
+	  row.names(stat.boot)[2]<-nm
+	  level<-1-confidence.level
+	  confidence.interval <- apply(stat.boot,1,quantile,probs=c(level/2,1-level/2))  ###LINE 12
+	  out<-cbind("lower"=confidence.interval[1,],"estimate"=stat.obs,"upper"=confidence.interval[2,])
+	  return(list(confidence.interval = out, bootStats=stat.boot))
+	}
+	bootstraped<-bootstrapLM(y,x,1000)
+	
+	#Permuted stats
+		y<-minutes.correct$pctAsleep
+	x<-minutes.correct$pctSedentary
+	permuteLM <- function(y,x, repetitions, confidence.level=0.95){
+	  stat.obs <- coef(lm(y~x))
+	  permFun<-function(){
+		  sampled <- sample(1:length(y), size=length(y),replace = FALSE)
+		  coef(lm(y[sampled]~x[sampled]))
+	  }  
+	  stat.perm<-replicate(repetitions,permFun())
+	  #this next line is advanced, but simply finds the name of the input x value.
+	  nm <-deparse(substitute(x))
+	  row.names(stat.perm)[2]<-nm
+	  level<-1-confidence.level
+	  confidence.interval <- apply(stat.perm,1,quantile,probs=c(level/2,1-level/2))  ###LINE 12
+	  out<-cbind("lower"=confidence.interval[1,],"estimate"=stat.obs,"upper"=confidence.interval[2,])
+	  return(list(confidence.interval = out, permStats=stat.perm))
+	}
+	permuted<-permuteLM(y,x,1000)
+	
+	#Plotting both together
+	library(gplots)
+	plotCI(bootstraped$confidence.interval[2,2],ui=bootstraped$confidence.interval[2,3],li=bootstraped$confidence.interval[2,1])
+	```
+	
+	> My answer:The confidence interval for the permuted stats is smaller than the bootstrap stats although they are both centered near similar points.
+
+
+	g. (5 points) These data are collected on the same person over a year. What problem does this create in the validity of the parametric confidence intervals? Is this a problem for the validity of the bootstrap intervals?
+	
+	> My answer: There could be the issue that collecting data for one person leaves you unable to make many meaningful conclusions about the whole of FitBit users. It is also important to know the age of the user and what particular type of lifestyle that they live.  The age alone could greatly challenge the validity of both the parametric and bootraped confidence intervals.
+	
+	h. (5 points) We've seen that we do not always have all of the minutes of a day recorded. What affect could these missing minutes have on our above analysis? Be specific. A good idea is to first try to think of extreme examples of what could be happening in those minutes that might change your conclusion, so you can think about why it might be a problem. Then try to think of the best case scenario where its not affecting your results. Then return to the actual data and think how plausible it is to be worried about this problem. 
+	
+	> My answer: There is missing data that could be attributed to any of the time categories so there is truly no knowing or really assuming what the missing time could be.  There could be days where the user forgets to wear the fitbit, leaves it off for different occasions, leaves it off during critical moments when the watch may be too annoying or cumbersome.  The best case scenario is when the user wears the fitbit as much as possible so we could truly see how they move and act throughout the day, but that might only happen in the cases for people who are extremely active.

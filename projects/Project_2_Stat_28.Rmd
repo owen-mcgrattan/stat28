@@ -1,0 +1,220 @@
+---
+title: "Project 2"
+author: "Owen McGrattan"
+date: "4/24/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1
+```{r}
+#Read in training data
+library(readr)
+train <- read_csv("~/stat28/projects/data/train.csv")
+```
+
+Question 2
+```{r}
+summary(train)
+```
+
+Since each row in the data frame represents an hour with each of these different variables there is going to be a lot of deviation in the count variable as well as the casual and registered variables.
+
+```{r}
+random<-train[sample(nrow(train),1000),]
+pairs(random)
+```
+After looking at a pairs plot of a random sample of 1000 timestamps (was not readable with the full train dataset), there appears to be something of an increase in the count as the date increases
+
+```{r}
+par(mfrow=c(1,2))
+plot(train$datetime,train$count,xlab="Date",ylab="Count")
+boxplot(count~season,data=train,ylab="Count",xlab="Season")
+```
+
+From the first plot we can note that the number of rentals each day has gone up considerably, notably in the summer and the fall when rentals appear to be their highest.  Bike sharing in these cities has appeared to have grown considerably.
+
+
+Question 3
+```{r}
+plot(train$workingday,train$count,xlab="WorkingDay",ylab="Count")
+plot(train$atemp,train$count,xlab="Atemp",ylab="Count")
+num.work<-nrow(train[train$workingday==1,])
+num.nonwork<-nrow(train[train$workingday==0,])
+```
+As would be expected, there are more rentals on days when the weather is warmer
+but begins to tail off when it feels warmer than 40 degrees celcius outside.
+There appear to be higher rental counts on working days but this could be a result of the fact that there are a total of ~ 308 working days in the train dataset compared to ~ 144 non working days.
+
+
+```{r}
+hist(train$count,breaks=50,xlab="Count")
+hist(train$registered,breaks=50,xlab="Registered")
+hist(train$casual,breaks=50,xlab="Casual")
+```
+Due to the heavy right skewness in the distributions of casual, registered, and count it is appropriate to do log transformations on both casual and registered.
+
+```{r}
+par(mfrow=c(1,2))
+plot(train$datetime,train$casual,xlab="Date",ylab="Casual")
+plot(train$datetime,train$registered,xlab="Date",ylab="Registered")
+```
+Given the general differences in the number of casual and registered riders as well as the differing variations and distributions, separate models for the number of casual and registered riders should be called for with log(casual) and log(registered) as the two response variables.
+
+Question 4
+
+```{r}
+#Make sure there are no zero values in casual and registered when running log transformations, 
+#add 1 to casual and registered.
+
+#Regression for log(casual) and log(registered)
+train$lcasual<-log(train$casual+1)
+train$lregistered<-log(train$registered+1)
+casual_fit<-lm(lcasual~.,data=train[,-c(12,11,10,14)])
+registered_fit<-lm(lregistered~.,data=train[,-c(12,10,11,13)])
+summary(registered_fit)
+summary(casual_fit)
+```
+
+```{r}
+#Create a new variable with datetime as a factor
+train$hour<-(as.POSIXlt(train$datetime))$hour
+#Fit a new regression equation with the hour, weather, season, and workingday factors
+
+better.casual_fit<-lm(formula = lcasual ~ datetime + as.factor(season) + as.factor(holiday) + 
+    as.factor(workingday) + as.factor(weather) + temp + atemp + 
+    humidity + windspeed + as.factor(hour), data = train)
+
+better.registered_fit<-lm(formula = lregistered ~ datetime + as.factor(season) + as.factor(holiday) + 
+    as.factor(workingday) + as.factor(weather) + temp + atemp + 
+    humidity + windspeed + as.factor(hour), data = train)
+
+
+summary(better.casual_fit)
+summary(better.registered_fit)
+```
+Here we see drastic improvements in our multiple R-squared for both lregistered and lcasual.
+
+With all of the hour factors, it would most likely be useful to create factors that go along with the different times of day since we know that there will be fewer users late at night and in the middle of the night and we will see an increase in users during the day.  
+
+As far as variables that could be useful it is important to note which variables do not do much explaining on their own.  One such case is the variable season which does give a broad idea as to what the weather and temperature are but does not give specifics.  There are certainly warmer days in the beginning of fall compared to the end of fall and there will be days in the spring that do not make for ideal biking conditions, so interacting the atemp and season as well as the season and time of day should result in something more accurate.  Also important to include are the interactions between the atemp and time of day as well as the atemp and humidity.
+
+```{r}
+#Create a variable to represent different times in the day
+breaks<-c(0,5,12,21,23)
+labels<-c("middle of night","morning","afternoon","night")
+train$tod<-cut(train$hour,breaks,labels,include.lowest = TRUE)
+
+#Fit new regression equation with interactions
+interaction.casual_fit<-lm(formula = lcasual ~ datetime + as.factor(season) + as.factor(holiday) + 
+    as.factor(workingday) + as.factor(weather) + temp + atemp + 
+    humidity + windspeed + as.factor(hour) + as.factor(season):atemp + 
+    as.factor(tod):atemp + humidity:as.factor(season) + as.factor(tod):humidity + 
+    as.factor(tod):windspeed, data = train)
+
+summary(interaction.casual_fit)
+
+interaction.registered_fit<-lm(formula = lregistered ~ datetime + as.factor(season) + as.factor(holiday) + 
+    as.factor(workingday) + as.factor(weather) + temp + atemp + 
+    humidity + windspeed + as.factor(hour) + as.factor(season):atemp + 
+    as.factor(tod):atemp + as.factor(season):humidity, data = train)
+
+
+summary(interaction.registered_fit)
+
+```
+
+
+
+Question 5
+
+
+First to clean up our equation for lcasual by stepwise regression
+
+```{r}
+step(interaction.casual_fit,direction = "both")
+```
+There is nothing to change in our interaction.casual_fit equation. The current equation already has the lowest AIC.
+
+
+
+For the registered_fit equation
+```{r}
+step(interaction.registered_fit,direction="both")
+```
+```{r}
+#Fit new registered equation based on the stepwise regression
+interaction.registered_fit<-lm(formula = lregistered ~ datetime + as.factor(season) + as.factor(workingday) + 
+    as.factor(weather) + atemp + humidity + windspeed + as.factor(hour) + 
+    as.factor(season):atemp + atemp:as.factor(tod) + as.factor(season):humidity, 
+    data = train)
+```
+
+The temp and as.factor(holiday) variables have been dropped from the interacted.registered_fit equation to attain an equation with the lowest AIC.
+
+
+
+Question 6
+
+```{r}
+par(mfrow=c(2,2))
+plot(interaction.casual_fit)
+```
+The first plot resembles a random scatter but there is an odd slice of missing values in the bottom left hand side.  However there is nothing that is alarmingly out of the norm here.
+
+The normal assumption holds on the second plot as the points fall along the plotted line.
+
+The third plot does not necessarily indicate any increasing or decreasing so we cannot assume heterscedasticity.
+
+```{r}
+par(mfrow=c(2,2))
+plot(interaction.registered_fit)
+```
+
+The first plot resembles a random scatter but the bottom lower left portion of the plot is missing values.
+
+The Normal Q-Q plot shows the points along the plotted line.
+
+The third plot does not show any signs of increases or decreases, so we can not assume any heterscadicity.
+
+Question 7 
+
+Prediction for registered and 
+```{r}
+#First read in test data
+test <- read_csv("~/stat28/projects/data/test.csv")
+#Add the previous variables from the train dataset
+#hour
+test$hour<-(as.POSIXlt(test$datetime))$hour
+#Time of day labels
+breaks<-c(0,5,12,21,23)
+labels<-c("middle of night","morning","afternoon","night")
+test$tod<-cut(test$hour,breaks,labels,include.lowest = TRUE)
+
+```
+
+
+```{r}
+#Predictions
+predicted_registered<-exp(predict(interaction.registered_fit,test))
+predicted_casual<-exp(predict(interaction.casual_fit,test))
+predicted_count=predicted_casual+predicted_registered
+#Prediction data frame
+prediction<-data.frame("datetime"=test$datetime,
+                       "count"=predicted_count)
+```
+
+```{r}
+#Write the prediction data frame into a csv
+write.csv(prediction,file="Subm.csv", row.names = FALSE)
+```
+
+Kaggle score: 0.62149
+
+Question 8
+
+Certainly far from the top but a score that was better than expected. In the future I would look more into interacting more variables and possibly start with all combinations and eventually do stepwise regression to see if there were any interactions that would give me a better regression equation and more accurate predictions.
+
